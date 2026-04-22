@@ -84,10 +84,29 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         self.run_command(cmd, "Combinación de PDF", output_path)
     
     """
+    Merge and compress PDF files using Ghostscript.
+    """
+    def merge_and_compress_pdfs(self, menu, files):
+        paths = [f.get_location().get_path() for f in files]
+        temp_path = os.path.join(os.path.dirname(paths[0]), "pdf_combinado.pdf")
+        output_path = temp_path.replace(".pdf", "_comprimido.pdf")
+        cmd_merge = [
+            "gs", "-sDEVICE=pdfwrite", "-dNOPAUSE", "-dQB", "-dBATCH",
+            f"-sOutputFile={temp_path}"
+        ] + paths
+        cmd_compress = [
+            "gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4",
+            "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dQUIET", "-dBATCH",
+            f"-sOutputFile={output_path}", temp_path
+        ]
+        self.run_command(cmd_merge, "Combinación de PDF", temp_path)
+        self.run_command(cmd_compress, "Compresión de PDF", output_path)
+    
+    """
     Get the file items for the context menu.
     """
     def get_file_items(self, files):
-        pdf_files = [f for f in files if f.get_name().lower().endswith(".pdf") and not f.is_directory()]
+        pdf_files = [f for f in files if f.get_mime_type() == "application/pdf" and not f.is_directory()]
         if not pdf_files:
             return []
         top_menu_item = Nautilus.MenuItem(
@@ -113,4 +132,11 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             )
             item_merge.connect("activate", self.merge_pdfs, pdf_files)
             submenu.append_item(item_merge)
+            # item_merge_and_compress = Nautilus.MenuItem(
+            #     name="PdfTools::MergeAndCompress",
+            #     label=f"Combinar y comprimir {len(pdf_files)} PDF(s)",
+            #     tip="Une todos los PDF en uno solo y reduce el tamaño"
+            # )
+            # item_merge_and_compress.connect("activate", self.merge_and_compress_pdfs, pdf_files)
+            # submenu.append_item(item_merge_and_compress)
         return [top_menu_item]
