@@ -3,6 +3,7 @@ import subprocess
 import threading
 import gi
 from gi.repository import GObject, Nautilus, Notify, GLib
+from datetime import datetime
 
 """
 Initialize the notifications.
@@ -31,85 +32,74 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             notification.show()
             return False
         GObject.idle_add(_do_show)
-
+    
     """
-    Run a command in a separate thread.
+    Get a timestamp.
     """
-    def run_command(self, cmd, task_name, output_file):
-        def target():
-            self._show_notification(
-                "Proceso iniciado",
-                f"Ejecutando: {task_name}..."
-            )
-            try:
-                subprocess.run(cmd, check=True, capture_output=True)
-                self._show_notification(
-                    "Proceso completado",
-                    f"Se ha creado: {os.path.basename(output_file)}"
-                )
-            except Exception:
-                self._show_notification(
-                    "Error en la operación",
-                    f"Error al ejecutar: {task_name}"
-                )
-        thread = threading.Thread(target=target)
-        thread.daemon = True
-        thread.start()
-        return thread
+    def _get_timestamp(self):
+        return int(datetime.now().timestamp())
     
     """
     Compress PDF files using Ghostscript.
     """
     def compress_pdf(self, menu, files):
+        ts = self._get_timestamp()
         for file in files:
             filepath = file.get_location().get_path()
-            output_path = filepath.replace(".pdf", "_comprimido.pdf")
+            output_path = os.path.join(os.path.dirname(filepath), f"{ts}_comprimido.pdf")
             cmd = [
                 "gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4",
                 "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dQUIET", "-dBATCH",
                 f"-sOutputFile={output_path}", filepath
             ]
-            self.run_command(cmd, "Compresión de PDF", output_path)
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
     
     """
     Merge PDF files using Ghostscript.
     """
     def merge_pdfs(self, menu, files):
         paths = [f.get_location().get_path() for f in files]
-        output_path = os.path.join(os.path.dirname(paths[0]), "pdf_combinado.pdf")
+        ts = self._get_timestamp()
+        output_path = os.path.join(os.path.dirname(paths[0]), f"{ts}_combinado.pdf")
         cmd = [
             "gs", "-sDEVICE=pdfwrite", "-dNOPAUSE", "-dQB", "-dBATCH",
             f"-sOutputFile={output_path}"
         ] + paths
-        self.run_command(cmd, "Combinación de PDF", output_path)
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
     
     """
     Merge and compress PDF files using Ghostscript.
     """
     def merge_and_compress_pdfs(self, menu, files):
         paths = [f.get_location().get_path() for f in files]
-        temp_path = os.path.join(os.path.dirname(paths[0]), "pdf_combinado.pdf")
-        output_path = temp_path.replace(".pdf", "_comprimido.pdf")
-        cmd_merge = [
-            "gs", "-sDEVICE=pdfwrite", "-dNOPAUSE", "-dQB", "-dBATCH",
-            f"-sOutputFile={temp_path}"
-        ] + paths
-        cmd_compress = [
+        ts = self._get_timestamp()
+        output_path = os.path.join(os.path.dirname(paths[0]), f"{ts}_combinado_y_comprimido.pdf")
+        cmd = [
             "gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4",
-            "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dQUIET", "-dBATCH",
-            f"-sOutputFile={output_path}", temp_path
-        ]
-        thread_merge = self.run_command(cmd_merge, "Combinación de PDF", temp_path)
-        thread_merge.join()
-        thread_compress = self.run_command(cmd_compress, "Compresión de PDF", output_path)
-        thread_compress.join()
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+            "-dPDFSETTINGS=/ebook",
+            "-dNOPAUSE", "-dQUIET", "-dBATCH",
+            f"-sOutputFile={output_path}"
+        ] + paths
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
     
     """
     Get the file items for the context menu.
     """
-    #TODO: Mejorar el rendimiento, crear un hilo para cada operación y no por comando.
     def get_file_items(self, files):
         pdf_files = [f for f in files if f.get_mime_type() == "application/pdf" and not f.is_directory()]
         if not pdf_files:
