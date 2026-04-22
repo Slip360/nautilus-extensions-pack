@@ -43,7 +43,6 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             )
             try:
                 subprocess.run(cmd, check=True, capture_output=True)
-                # self._refresh_nautilus(output_file)
                 self._show_notification(
                     "Proceso completado",
                     f"Se ha creado: {os.path.basename(output_file)}"
@@ -56,6 +55,7 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         thread = threading.Thread(target=target)
         thread.daemon = True
         thread.start()
+        return thread
     
     """
     Compress PDF files using Ghostscript.
@@ -99,12 +99,17 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dQUIET", "-dBATCH",
             f"-sOutputFile={output_path}", temp_path
         ]
-        self.run_command(cmd_merge, "Combinación de PDF", temp_path)
-        self.run_command(cmd_compress, "Compresión de PDF", output_path)
+        thread_merge = self.run_command(cmd_merge, "Combinación de PDF", temp_path)
+        thread_merge.join()
+        thread_compress = self.run_command(cmd_compress, "Compresión de PDF", output_path)
+        thread_compress.join()
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
     
     """
     Get the file items for the context menu.
     """
+    #TODO: Mejorar el rendimiento, crear un hilo para cada operación y no por comando.
     def get_file_items(self, files):
         pdf_files = [f for f in files if f.get_mime_type() == "application/pdf" and not f.is_directory()]
         if not pdf_files:
@@ -132,11 +137,11 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             )
             item_merge.connect("activate", self.merge_pdfs, pdf_files)
             submenu.append_item(item_merge)
-            # item_merge_and_compress = Nautilus.MenuItem(
-            #     name="PdfTools::MergeAndCompress",
-            #     label=f"Combinar y comprimir {len(pdf_files)} PDF(s)",
-            #     tip="Une todos los PDF en uno solo y reduce el tamaño"
-            # )
-            # item_merge_and_compress.connect("activate", self.merge_and_compress_pdfs, pdf_files)
-            # submenu.append_item(item_merge_and_compress)
+            item_merge_and_compress = Nautilus.MenuItem(
+                name="PdfTools::MergeAndCompress",
+                label=f"Combinar y comprimir {len(pdf_files)} PDF(s)",
+                tip="Une todos los PDF en uno solo y reduce el tamaño"
+            )
+            item_merge_and_compress.connect("activate", self.merge_and_compress_pdfs, pdf_files)
+            submenu.append_item(item_merge_and_compress)
         return [top_menu_item]
