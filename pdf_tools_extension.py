@@ -1,37 +1,18 @@
 import os
 import subprocess
-import threading
 import gi
-from gi.repository import GObject, Nautilus, Notify, GLib
+from gi.repository import GObject, Nautilus, GLib
 from datetime import datetime
-
-"""
-Initialize the notifications.
-"""
-Notify.init("org.gnome.Nautilus")
 
 """
 Class for compressing PDF files using Ghostscript.
 """
-class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
+class PdfToolsExtension(GObject.GObject):
     """
     Initialize the extension.
     """
     def __init__(self):
         super().__init__()
-
-    """
-    Show a notification.
-    """
-    def _show_notification(self, title, message):
-        def _do_show():
-            notification = Notify.Notification.new(title, message, "system-run-symbolic")
-            notification.set_category("transfer")
-            notification.set_urgency(Notify.Urgency.NORMAL)
-            notification.set_hint("transient", GLib.Variant('b', True))
-            notification.show()
-            return False
-        GObject.idle_add(_do_show)
     
     """
     Get a timestamp.
@@ -42,7 +23,7 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
     """
     Compress PDF files using Ghostscript.
     """
-    def compress_pdf(self, menu, files):
+    def _compress_pdf(self, menu, files):
         ts = self._get_timestamp()
         for file in files:
             filepath = file.get_location().get_path()
@@ -62,7 +43,7 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
     """
     Merge PDF files using Ghostscript.
     """
-    def merge_pdfs(self, menu, files):
+    def _merge_pdfs(self, menu, files):
         paths = [f.get_location().get_path() for f in files]
         ts = self._get_timestamp()
         output_path = os.path.join(os.path.dirname(paths[0]), f"{ts}_combinado.pdf")
@@ -80,7 +61,7 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
     """
     Merge and compress PDF files using Ghostscript.
     """
-    def merge_and_compress_pdfs(self, menu, files):
+    def _merge_and_compress_pdfs(self, menu, files):
         paths = [f.get_location().get_path() for f in files]
         ts = self._get_timestamp()
         output_path = os.path.join(os.path.dirname(paths[0]), f"{ts}_combinado_y_comprimido.pdf")
@@ -117,7 +98,7 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             label=f"Comprimir {len(pdf_files)} PDF(s)",
             tip="Reduce el tamaño de los PDF"
         )
-        item_compress.connect("activate", self.compress_pdf, pdf_files)
+        item_compress.connect("activate", self._compress_pdf, pdf_files)
         submenu.append_item(item_compress)
         if len(pdf_files) > 1:
             item_merge = Nautilus.MenuItem(
@@ -125,13 +106,13 @@ class PdfToolsExtension(GObject.GObject, Nautilus.MenuProvider):
                 label=f"Combinar {len(pdf_files)} PDF(s)",
                 tip="Une todos los PDF en uno solo"
             )
-            item_merge.connect("activate", self.merge_pdfs, pdf_files)
+            item_merge.connect("activate", self._merge_pdfs, pdf_files)
             submenu.append_item(item_merge)
             item_merge_and_compress = Nautilus.MenuItem(
                 name="PdfTools::MergeAndCompress",
                 label=f"Combinar y comprimir {len(pdf_files)} PDF(s)",
                 tip="Une todos los PDF en uno solo y reduce el tamaño"
             )
-            item_merge_and_compress.connect("activate", self.merge_and_compress_pdfs, pdf_files)
+            item_merge_and_compress.connect("activate", self._merge_and_compress_pdfs, pdf_files)
             submenu.append_item(item_merge_and_compress)
         return [top_menu_item]
