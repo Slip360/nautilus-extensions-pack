@@ -1,4 +1,5 @@
 import gi
+gi.require_version('Nautilus', '4.1')
 from gi.repository import GObject, Nautilus
 from copy_path_extension import CopyPathExtension
 from pdf_tools_extension import PdfToolsExtension

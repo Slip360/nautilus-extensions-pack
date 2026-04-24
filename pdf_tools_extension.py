@@ -1,6 +1,7 @@
 import os
 import subprocess
 import gi
+gi.require_version('Nautilus', '4.1')
 from gi.repository import GObject, Nautilus, GLib
 from datetime import datetime
 
